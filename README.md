@@ -18,7 +18,7 @@ Source files can be found in the folders named `app`.
   - the detection results for the 100 method sampled from Apache Lucene can be found in [`results/rq2/lucene-100.log`](./results/rq2/lucene-100.log). 
   - We submitted 12 pull requests, and 7 of them are confirmed by developers. The pull requests can be found in [`results/rq2/PR.md`](./results/rq2/PR.md).
 
-- **RQ3:** The results of GPTLeak, GPTLeak-*exp*, and GPTLeak-*roi* can be found in [`results/rq3/gptleak.log`](./results/rq3/gptleak.log), [`results/rq3/gptleak-exp.log`](./results/rq3/gptleak-exp.log), and [`results/rq3/gptleak-roi.log`](./results/rq3/gptleak-roi.log).
+- **RQ3:** The results of GPTLeak, GPTLeak-*exp*, and GPTLeak-*roi* on DroidLeaks can be found in [`results/rq3/droidleaks-gptleak.log`](./results/rq3/droidleaks-gptleak.log), [`results/rq3/droidleaks-gptleak-exp.log`](./results/rq3/droidleaks-gptleak-exp.log), and [`results/rq3/droidleaks-gptleak-roi.log`](./results/rq3/droidleaks-gptleak-roi.log).
 
 - **RQ4:** The results of Llama-3-8B and Gemma-2-9B on DroidLeaks can be found in [`results/rq4/droidleaks-llama-3-8b.log`](./results/rq4/droidleaks-llama-3-8b.log) and [`results/rq4/droidleaks-gemma-2-9b.log`](./results/rq4/droidleaks-gemma-2-9b.log).
 
