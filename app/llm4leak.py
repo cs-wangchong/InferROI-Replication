@@ -3,18 +3,16 @@ import os
 import re
 import time
 from collections import defaultdict
+import traceback
 
-import openai
 import spacy
 from srctoolkit.javalang.parse import parse
 from srctoolkit.javalang.tree import *
 
 from app.cfg import CFG
 from app.intention import Intention
-from app.prompt import *
-
-GPT_VERSION = "gpt-4-turbo-preview"
-OPENAI_KEY = "Your Key"
+from app.prompts import *
+from app.llms import *
 
 
 
@@ -31,24 +29,27 @@ INVALID_RESOURCES = {
 
 
 class LLM4Leak:
-    def __init__(self, gpt_version=GPT_VERSION, openai_key=OPENAI_KEY, prompt_template=PROMPT_TEMPLATE, vote=5, retry=3): 
-        self.gpt_version = gpt_version
-        os.environ["OPENAI_API_KEY"] = openai_key
-        openai.api_key = openai_key
+    def __init__(
+            self,
+            llm: LLM = ChatGPT("gpt-4-turbo"),
+            prompt_template: str = INFERROI_PAPER,
+            retry=3
+        ): 
+        self.llm: LLM = llm
         self.prompt_template = prompt_template
         self.nlp = spacy.load('en_core_web_sm')
         self.nlp.add_pipe("merge_noun_chunks")
         self.retry = retry
-        self.vote = vote
 
-    def detect(self, code, consider_exception=True):
+    def detect(self, code, consider_exception=True, post_filtering=True):
         leaks = dict()
         question, answer = None, None
         for _ in range(self.retry):
             try:
                 question, answer = self.ask_llm(code)
-            except openai.OpenAIError:
+            except Exception:
                 time.sleep(5)
+                traceback.print_exc()
                 continue
             break
         if answer is None:
@@ -59,33 +60,14 @@ class LLM4Leak:
             return question, answer, intentions, leaks
         cfg.prune(intentions)
         cfg.enumerate_paths(intentions)
-        leaks = cfg.detect(intentions, consider_exception=consider_exception)
+        leaks = cfg.detect(intentions, consider_exception=consider_exception, post_filtering=post_filtering)
         return question, answer, intentions, leaks
 
     def ask_llm(self, code):
-        logging.info("ask llm for resource acquisition and release.")
-
+        logging.info(f"ask {self.llm.name} for resource acquisition and release.")
         code_with_lineno = self.__add_line_numbers(code)
-        response = openai.ChatCompletion.create(
-            model=self.gpt_version,
-            messages=[
-                # {
-                #     "role": "system",
-                #     "content": SYSTEM_PROMPT
-                # },
-                {
-                    "role": "user",
-                    "content": self.prompt_template.format(code=code_with_lineno)
-                }
-            ],
-            temperature=0,
-            max_tokens=1024,
-            # top_p=0,
-            frequency_penalty=0,
-            presence_penalty=0
-        )
         question = self.prompt_template.format(code=code_with_lineno)
-        answer = response['choices'][0]['message']["content"]
+        answer = self.llm.query(question)
         logging.info(f'Q: \n{question}\n')
         logging.info(f'A: \n{answer}\n\n')
         return question, answer
@@ -122,6 +104,8 @@ class LLM4Leak:
                 continue
             # logging.info(f"{line}\t{(lineno, operation, resource)")
             resource = self.__clean_resource(resource)
+            if len(resource.split()) > 3:
+                continue
             if resource.lower() in INVALID_RESOURCES:
                 continue
             resource, resource_type = self.__resolve_type(lineno, resource, type_map, ref_map)
@@ -137,25 +121,25 @@ class LLM4Leak:
             if resource_type.lower() in INVALID_RESOURCES:
                 continue
             intentions.add((lineno, Intention.VALIDATE, resource, resource_type))
-       
+
         intentions = list(intentions)
         intentions.sort(key=lambda item: item[0])
         logging.info(f'final intentions: {intentions}')
         return intentions
-    
+
     def __clean_resource(self, resource):
         if resource.count("`") == 2:
             resource = re.search(r"`(.*?)`", resource).group(0)
         words = resource.replace("`", "").split()
         while len(words) > 0:
-            if words[0].lower() in {"resource", "resources", "a", "an", "the", "open", "leakable", "acquired"}:
+            if words[0].lower() in {"resource", "resources", "a", "an", "the", "any", "open", "leakable", "acquired"}:
                 words = words[1:]
-            elif words[-1].lower() in {"resource", "resources", "a", "an", "the", "leakable"}:
+            elif words[-1].lower() in {"resource", "resources", "a", "an", "the", "any", "leakable"}:
                 words = words[:-1]
             else:
                 break
         return " ".join(words)
-    
+
     def __resolve_type(self, lineno, resource, type_map, ref_map):
         # logging.info([lineno, resource, type_map, ref_map])
         types = set(type_map.values())
@@ -167,7 +151,7 @@ class LLM4Leak:
                     break
         resource_type = type_map.get(resource, resource)
         return resource, resource_type
-    
+
     def __get_decl_map(self, code):
         code = 'class Foo{\n' + code + '\n}'
         ast = parse(code)
@@ -179,11 +163,11 @@ class LLM4Leak:
                 parts.append(type.sub_type.name)
                 type = type.sub_type
             type_name = ".".join(parts)
-            
+
             if hasattr(type, 'dimensions') and isinstance(type.dimensions, list) and len(type.dimensions) > 0:
                 type_name += "[]" * len(type.dimensions)
             return type_name
-        
+
             # generate declaration variables list
         type_map = dict()
         ref_map = defaultdict(set)

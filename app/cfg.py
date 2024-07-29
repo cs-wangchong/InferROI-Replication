@@ -5,6 +5,7 @@ from collections import defaultdict
 from srctoolkit.dependency_analyzer import DependencyAnalyzer
 from srctoolkit.javalang.parse import parse
 from srctoolkit.javalang.tree import IfStatement, MethodDeclaration
+from srctoolkit.delimiter import Delimiter
 
 from app.intention import Intention
 
@@ -14,13 +15,13 @@ EXIT = "exit"
 EXIT_LINE = -99999
 
 class CFG:
-    def __init__(self, nodes, edges, node_lines, node_descs, code, ast):
+    def __init__(self, nodes, edges, node_lines, node_descs, code, ast: MethodDeclaration):
         self.nodes = nodes
         self.edges = edges
         self.node_lines = node_lines
         self.node_descs = node_descs
         self.code_lines = [line.strip() for line in code.split("\n")]
-        self.ast = ast
+        self.ast: MethodDeclaration = ast
         self.initilize()
         
     @classmethod
@@ -31,6 +32,7 @@ class CFG:
         try:
             ast = parse(wrapped_code)
             cfg_json = ANALYZER.build_cfg(wrapped_code)[0]
+            ast = [md for _, md in ast.filter(MethodDeclaration)][0]
         except Exception:
             return cls(nodes, edges, node_lines, node_descs, code, None)  
         
@@ -174,8 +176,8 @@ class CFG:
         for lineno, op, res, t_res in intentions:
             if op == Intention.OPEN:
                 # handle try_with_resources
-                if not any(self.node_descs[node_index].__contains__('try') for node_index in self.lineno2node[lineno]):
-                    start_nodes.extend(self.lineno2node[lineno])
+                # if not any(self.node_descs[node_index].__contains__('try') for node_index in self.lineno2node[lineno]):
+                start_nodes.extend(self.lineno2node[lineno])
         for node in self.nodes:
             if len(self.outedge_lines[self.node_lines[node]]) == 0:
                 end_nodes.append(node)
@@ -210,7 +212,7 @@ class CFG:
             elif operation == Intention.VALIDATE and any([re.match(r"if(\s|\()", self.node_descs[node].strip()) for node in nodes]):
                 val_nodes.update(nodes)
 
-        logging.info(f'acq_nodes: {acq_nodes}\n, rel_nodes: {rel_nodes}\n, val_nodes: {val_nodes}')
+        logging.info(f'\nacquisition: {[(self.node_lines[n], self.node_descs[n]) for n in acq_nodes]}\nrelease: {[(self.node_lines[n], self.node_descs[n]) for n in rel_nodes]}\nvalidation: {[(self.node_lines[n], self.node_descs[n]) for n in val_nodes]}')
         
         leaky_map = dict()
         validation_map = defaultdict(list)
@@ -255,33 +257,38 @@ class CFG:
         leaky_paths = list(set(path for path, leaky in leaky_map.items() if leaky))
         return leaky_paths
     
+
     def is_leaky_caused_by_exception(self, intentions):
-        if all(md.throws is None for _, md in self.ast.filter(MethodDeclaration)):
+        if self.ast.throws is None:
             return False
-        # check whether resource is closed in finally-block
+        # check whether resource is opened in try-with-resources or is closed in finally-block
         for lineno, operation, resource, _ in intentions:
-            leaky = True
-            cur_line = lineno
-            if operation != Intention.CLOSE:
-                continue
-            visited_nodes = set()
-            while cur_line in self.inedge_lines:
-                node_id = self.lineno2node[cur_line][0]
-                visited_nodes.add(node_id)
-                if self.node_descs[node_id] == "finally":
-                    leaky = False
-                    break
-                in_lines = [l for l in self.inedge_lines[cur_line] if l <= cur_line and self.lineno2node[l][0] not in visited_nodes]
-                if len(in_lines) == 0:
-                    break
-                cur_line = in_lines[0]
-            if leaky:
-                return True
+
+            if operation == Intention.OPEN:
+                if any(self.node_descs[n].__contains__('try') for n in self.lineno2node[lineno]):
+                    return False
+            if operation == Intention.CLOSE:
+                leaky = True
+                cur_line = lineno
+                
+                visited_nodes = set()
+                while cur_line in self.inedge_lines:
+                    node_id = self.lineno2node[cur_line][0]
+                    visited_nodes.add(node_id)
+                    if self.node_descs[node_id] == "finally":
+                        leaky = False
+                        break
+                    in_lines = [l for l in self.inedge_lines[cur_line] if l <= cur_line and self.lineno2node[l][0] not in visited_nodes]
+                    if len(in_lines) == 0:
+                        break
+                    cur_line = in_lines[0]
+                if leaky:
+                    return True
         
         return False
 
             
-    def detect(self, intentions, consider_exception=True):
+    def detect(self, intentions, consider_exception=True, post_filtering=True):
         logging.info("start detecting leaks")
         # for node in self.nodes:
         #     logging.info(f'line: {self.node_lines[node]} {self.node_descs[node]}')
@@ -293,13 +300,21 @@ class CFG:
         
         leaks = defaultdict(set)
         for resource, res_intentions in res2intentions.items():
+            logging.info(f"detect for `{resource}`")
+            
             leaky_paths = self.detect_for_one_resource(res_intentions)
+
+            if post_filtering:
+                logging.info(f"{len(leaky_paths)} paths before post filtering")
+                resource_type = res_intentions[0][-1]
+                leaky_paths = self.post_filtering(resource_type, resource, leaky_paths)
+                logging.info(f"{len(leaky_paths)} paths after post filtering")
+            
             formatted_leaky_paths = [self.desc_path(path) for path in leaky_paths]
             leaks[resource].update(formatted_leaky_paths)
-        if consider_exception:
-            for resource, res_intentions in res2intentions.items():
-                if len(leaks[resource]) == 0 and self.is_leaky_caused_by_exception(res_intentions):
-                    leaks[resource].update("potiential resource leaks caused by unhandled exception")
+            if consider_exception and len(leaks[resource]) == 0 and self.is_leaky_caused_by_exception(res_intentions):
+                leaks[resource].add("potiential resource leaks caused by unhandled exception")
+        
         leaks = {
             res: {
                 "type": res2type.get(res, res),
@@ -314,4 +329,43 @@ class CFG:
         #     formatted_paths = "\n".join(f"path-{i}:\n\t{p}" for (i, p) in enumerate(leaky_paths, 1))
             # logging.info(f'leaks of `{resource}`, leaky paths:\n{formatted_paths}')
         return leaks
+    
+
+    def post_filtering(self, resource_type, resource, leaky_paths):
+        filtered_paths = []
+        for path in leaky_paths:
+            print([(self.node_lines[n], self.node_descs[n]) for n in path])
+
+            start_node, end_node = path[0], path[-1]
+            second_last_node = None if len(path) < 2 else path[-2]
+
+            # filtering by try-with-resources
+            if any(self.node_descs[n].__contains__('try') for n in self.lineno2node[self.node_lines[start_node]]):
+                continue
+
+            # filtering by usage in return statement
+            def check_return(node_desc):
+                _resource_type = Delimiter.split_camel(resource_type)
+                _resource = Delimiter.split_camel(resource)
+                _return_type = Delimiter.split_camel(self.ast.return_type.name) if hasattr(self.ast.return_type, "name") else "void"
+                if _resource_type == _return_type:
+                    return True
+                if _resource_type.split()[-1] == _return_type.split()[-1]:
+                    return True
+                if _resource in _return_type:
+                    return True
+                if f"{resource}." in node_desc:
+                    return True
+                return False
+
+            # def check_return(node_desc):
+            #     return f"{resource}" in node_desc
+            
+            if self.node_descs[end_node].__contains__("return ") and check_return(self.node_descs[end_node]):
+                continue
+            # if second_last_node and self.node_descs[second_last_node].__contains__("return ") and check_return(self.node_descs[second_last_node]):
+            #     continue
+            filtered_paths.append(path)
+        return filtered_paths
+
       

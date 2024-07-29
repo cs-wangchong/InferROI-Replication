@@ -9,19 +9,31 @@ from openpyxl import load_workbook
 from srctoolkit import javalang
 from srctoolkit.dependency_analyzer import DependencyAnalyzer
 
+from app.llms import LLM_FACTORY
+from app.prompts import PROMPT_FACTORY
 from app.llm4leak import LLM4Leak
 from app.logging_util import init_log_file
 
 ANALYZER = DependencyAnalyzer()
 
-
 if __name__ == "__main__":
-    BUGGY_DIR = "JLeaks/JLeaksDataset/bug_method"
-    FIXED_DIR = "JLeaks/JLeaksDataset/fix_method"
-    META_PATH = "JLeaks/JLeaksDataset/JLeaks.xlsx"
+    BUGGY_DIR = "data/JLeaks/JLeaksDataset/bug_method"
+    FIXED_DIR = "data/JLeaks/JLeaksDataset/fix_method"
+    META_PATH = "data/JLeaks/JLeaksDataset/JLeaks.xlsx"
 
-    detector = LLM4Leak()
-    init_log_file("log/jleaks.log")
+    # MODEL = "gpt-4"
+    # MODEL = "gpt-4-turbo"
+    # MODEL = "gpt-3.5-turbo"
+    # MODEL = "llama-3-8b"
+    MODEL = "gemma-2-9b"
+
+    PROMPT = "inferroi-paper"
+
+    LOG_FILE = f"log/jleaks-{MODEL}-{PROMPT}.log"
+
+    detector = LLM4Leak(llm=LLM_FACTORY[MODEL](), prompt_template=PROMPT_FACTORY[PROMPT])
+
+    init_log_file(LOG_FILE)
 
     leaked_type_dict = dict()
     all_resource_types = set()
@@ -125,7 +137,7 @@ if __name__ == "__main__":
 
 
     identified_types = set()
-    with Path("log/jleaks.log").open("r") as f:
+    with Path(LOG_FILE).open("r") as f:
         for mobj in re.finditer(r"intentions: \[(.*?)\]", f.read()):
             intentions = mobj.group(1)
             for mobj2 in re.finditer(r"\(\d+, '\w+', '\w+', '(\w+)'\)", intentions):
@@ -135,5 +147,5 @@ if __name__ == "__main__":
                 identified_types.add(_type)
     logging.info(identified_types)
     
-    logging.info(len(all_resource_types), len(identified_types), len(identified_types & all_resource_types))
+    logging.info(f"{len(all_resource_types)}, {len(identified_types)}, {len(identified_types & all_resource_types)}")
     logging.info(len(identified_types & all_resource_types) / len(all_resource_types))

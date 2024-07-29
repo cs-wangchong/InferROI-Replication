@@ -2,3 +2,5 @@ openai
 langchain
 spacy
 srctoolkit
+torch
+transformers

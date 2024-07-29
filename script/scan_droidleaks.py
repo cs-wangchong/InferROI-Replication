@@ -6,15 +6,26 @@ import logging
 import traceback
 from tqdm import tqdm
 
+from app.llms import LLM_FACTORY
+from app.prompts import PROMPT_FACTORY
 from app.llm4leak import LLM4Leak
 from app.logging_util import init_log_file
 
 
-if __name__ == "__main__":
-    DATA_PATH = "DroidLeaks/DroidLeaks.csv"
 
-    detector = LLM4Leak()
-    init_log_file("log/droidleaks.log")
+if __name__ == "__main__":
+    DATA_PATH = "data/DroidLeaks/DroidLeaks.csv"
+
+    # MODEL = "gpt-4"
+    # MODEL = "gpt-4-turbo"
+    # MODEL = "gpt-3.5-turbo"
+    # MODEL = "llama-3-8b"
+    MODEL = "gemma-2-9b"
+
+    PROMPT = "inferroi-paper"
+
+    detector = LLM4Leak(llm=LLM_FACTORY[MODEL](), prompt_template=PROMPT_FACTORY[PROMPT])
+    init_log_file(f"log/droidleaks-{MODEL}-{PROMPT}.log")
 
     instances = []
     with open(DATA_PATH, mode='r') as file:
@@ -33,7 +44,7 @@ if __name__ == "__main__":
 
         logging.info("###### BUGGY METHOD ######")
         logging.info(buggy_method)
-        _, _, _, leaks = detector.detect(buggy_method, consider_exception=False)
+        _, _, _, leaks = detector.detect(buggy_method, consider_exception=False, post_filtering=False)
         time.sleep(5)
         leaked_types = {leak["type"].split(".")[-1] for leak in leaks.values()}
         normalized_leaked_types = set()
@@ -53,7 +64,7 @@ if __name__ == "__main__":
             fn += 1
         logging.info("###### FIXED METHOD ######")
         logging.info(fixed_method)
-        _, _, _, leaks = detector.detect(fixed_method, consider_exception=False)
+        _, _, _, leaks = detector.detect(fixed_method, consider_exception=False, post_filtering=False)
         time.sleep(5)
         leaked_types = {leak["type"].split(".")[-1] for leak in leaks.values()}
         normalized_leaked_types = set()
@@ -71,3 +82,4 @@ if __name__ == "__main__":
 
         logging.info(f"tp: {tp}, fp: {fp}, fn: {fn}")
         logging.info(f"precision: {(tp / (tp + fp)) if tp > 0 else 0.}, recall: {(tp / (tp + fn)) if tp > 0 else 0.}")
+        
