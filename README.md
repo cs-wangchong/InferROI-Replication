@@ -34,7 +34,7 @@ The following figure presents the CFG correpsonding to the Fixed Version in Figu
   - `max_tokens = 1024` for limiting the numbers of generated tokens
 
 ### Data
-Download datasets using this figshare [link](https://figshare.com/s/6b5623b4d2a18cf1e66e). Unzip the `data.zip` file, which includes the DroidLeaks dataset, JLeaks dataset, the 100 suspicious methods, and the 100 Apache Lucene methods. The statistics of the two datasets are excerpted from their papers as follow.
+Download datasets using this figshare [link](https://figshare.com/s/6b5623b4d2a18cf1e66e). Unzip the `data.zip` file, which includes the DroidLeaks dataset, JLeaks dataset, the 100 suspicious methods, and the 100 Apache Lucene methods. The statistics of resource distribution in two datasets are excerpted from their papers as follow.
 
 <img src="images/droidleaks.png" alt="DroidLeaks" width="500"/>
 
