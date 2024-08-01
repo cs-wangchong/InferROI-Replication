@@ -18,6 +18,7 @@ Source files can be found in the folders named `app`.
 
 ## CFG Example
 The following figure presents the CFG correpsonding to the Fixed Version in Figure 1 in our paper.
+
 <img src="images/cfg.png" alt="CFG" width="800"/>
 
 
@@ -57,6 +58,7 @@ The scripts used to evaluate InferROI are included in the `script` folder.
   - We submitted 12 pull requests, and 7 of them are confirmed by developers. The pull requests can be found in [`results/rq2/PR.md`](./results/rq2/PR.md).
 
 The following Venn Diagram shows the overlap among INFERROI-detected 29 bugs and PMD-detected 18 bugs.
+
 <img src="images/venn.png" alt="Venn" width="300"/>
 
 - **RQ3:** The results of GPTLeak, GPTLeak-*exp*, and GPTLeak-*roi* on DroidLeaks can be found in [`results/rq3/droidleaks-gptleak.log`](./results/rq3/droidleaks-gptleak.log), [`results/rq3/droidleaks-gptleak-exp.log`](./results/rq3/droidleaks-gptleak-exp.log), and [`results/rq3/droidleaks-gptleak-roi.log`](./results/rq3/droidleaks-gptleak-roi.log).
