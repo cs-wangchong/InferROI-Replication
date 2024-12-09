@@ -61,7 +61,9 @@ The following Venn Diagram shows the overlap among INFERROI-detected 29 bugs and
 
 <img src="images/venn.png" alt="Venn" width="300"/>
 
-- **RQ3:** The results of GPTLeak, GPTLeak-*exp*, and GPTLeak-*roi* on DroidLeaks can be found in [`results/rq3/droidleaks-gptleak.log`](./results/rq3/droidleaks-gptleak.log), [`results/rq3/droidleaks-gptleak-exp.log`](./results/rq3/droidleaks-gptleak-exp.log), and [`results/rq3/droidleaks-gptleak-roi.log`](./results/rq3/droidleaks-gptleak-roi.log).
+- **RQ3:** The prompts used in the ablation study are shown in Figure 5 below. The results of GPTLeak, GPTLeak-*exp*, and GPTLeak-*roi* on DroidLeaks can be found in [`results/rq3/droidleaks-gptleak.log`](./results/rq3/droidleaks-gptleak.log), [`results/rq3/droidleaks-gptleak-exp.log`](./results/rq3/droidleaks-gptleak-exp.log), and [`results/rq3/droidleaks-gptleak-roi.log`](./results/rq3/droidleaks-gptleak-roi.log).
+
+<img src="images/ablation-prompts.png" alt="Prompts" width="500"/>
 
 - **RQ4:** The results of Llama-3-8B and Gemma-2-9B on DroidLeaks can be found in [`results/rq4/droidleaks-llama-3-8b.log`](./results/rq4/droidleaks-llama-3-8b.log) and [`results/rq4/droidleaks-gemma-2-9b.log`](./results/rq4/droidleaks-gemma-2-9b.log).
 
